@@ -20,15 +20,15 @@ BORDER = "#2a3d5e"
 
 # ── Credentials ───────────────────────────────────────────────────────────────
 def _get_creds():
-    """Try st.secrets first, then env vars."""
+    """Try st.secrets first, then env vars. Accepts both TOKEN key names."""
     try:
         host = st.secrets["DATABRICKS_SERVER_HOSTNAME"]
         path = st.secrets["DATABRICKS_HTTP_PATH"]
-        token = st.secrets["DATABRICKS_ACCESS_TOKEN"]
+        token = st.secrets.get("DATABRICKS_ACCESS_TOKEN") or st.secrets["DATABRICKS_TOKEN"]
     except (KeyError, FileNotFoundError):
         host = os.environ["DATABRICKS_SERVER_HOSTNAME"]
         path = os.environ["DATABRICKS_HTTP_PATH"]
-        token = os.environ["DATABRICKS_ACCESS_TOKEN"]
+        token = os.environ.get("DATABRICKS_ACCESS_TOKEN") or os.environ["DATABRICKS_TOKEN"]
     return host, path, token
 
 

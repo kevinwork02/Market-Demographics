@@ -244,10 +244,11 @@ def _layout(title: str, height: int = 380, **kwargs) -> dict:
 
 
 def chart_age(df: pd.DataFrame) -> go.Figure:
+    total = df['cnt'].astype(int).sum()
     fig = go.Figure(go.Bar(
         x=df["age_band"].tolist(), y=df["cnt"].astype(int).tolist(),
         marker_color=CYAN,
-        text=[f"{int(v):,}" for v in df["cnt"]], textposition="outside"
+        text=[f"{v/total*100:.1f}%" for v in df['cnt'].astype(int)], textposition="outside"
     ))
     fig.update_layout(**_layout(
         "Age Distribution",
@@ -268,10 +269,11 @@ def chart_gender(df: pd.DataFrame) -> go.Figure:
 
 
 def chart_ethnicity(df: pd.DataFrame) -> go.Figure:
+    total = df['cnt'].astype(int).sum()
     fig = go.Figure(go.Bar(
         x=df["cnt"].astype(int).tolist(), y=df["ethnic_group"].tolist(),
         orientation="h", marker_color=CYAN,
-        text=[f"{int(v):,}" for v in df["cnt"]], textposition="outside"
+        text=[f"{v/total*100:.1f}%" for v in df['cnt'].astype(int)], textposition="outside"
     ))
     fig.update_layout(**_layout(
         "Ethnicity (Top 10)", height=420,
@@ -283,10 +285,11 @@ def chart_ethnicity(df: pd.DataFrame) -> go.Figure:
 
 
 def chart_income(df: pd.DataFrame) -> go.Figure:
+    total = df['cnt'].astype(int).sum()
     fig = go.Figure(go.Bar(
         x=df["income_band"].tolist(), y=df["cnt"].astype(int).tolist(),
         marker_color=LIME,
-        text=[f"{int(v):,}" for v in df["cnt"]], textposition="outside"
+        text=[f"{v/total*100:.1f}%" for v in df['cnt'].astype(int)], textposition="outside"
     ))
     fig.update_layout(**_layout(
         "Household Income Distribution", height=400,
@@ -300,10 +303,11 @@ def chart_income(df: pd.DataFrame) -> go.Figure:
 def chart_education(df: pd.DataFrame) -> go.Figure:
     order = ["Less Than High School Diploma", "High School Diploma", "Some College", "Completed College", "Graduate Degree"]
     df = df.set_index("education_level").reindex(order).dropna().reset_index()
+    total = df['cnt'].astype(int).sum()
     fig = go.Figure(go.Bar(
         x=df["education_level"].tolist(), y=df["cnt"].astype(int).tolist(),
         marker_color=CYAN,
-        text=[f"{int(v):,}" for v in df["cnt"]], textposition="outside"
+        text=[f"{v/total*100:.1f}%" for v in df['cnt'].astype(int)], textposition="outside"
     ))
     fig.update_layout(**_layout(
         "Education Level", height=400,

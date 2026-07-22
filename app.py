@@ -114,9 +114,9 @@ def load_demographics(dma_codes: tuple, zip_codes: tuple) -> pd.DataFrame:
 # ── Chart Builders ────────────────────────────────────────────────────────────
 def _layout(title: str, height: int = 380, **kwargs) -> dict:
     base = dict(
-        title=dict(text=title, font_color=LIGHT_CYAN),
-        plot_bgcolor=DARK_BG, paper_bgcolor=DARK_BG,
-        font_color=LIGHT_CYAN, height=height,
+        title=dict(text=title, font_color=NAVY),
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font_color="#333333", height=height,
         margin=dict(t=55, b=40)
     )
     base.update(kwargs)
@@ -135,8 +135,8 @@ def chart_age(df: pd.DataFrame) -> go.Figure:
     ))
     fig.update_layout(**_layout(
         "Age Distribution",
-        xaxis=dict(title="Age Band", gridcolor=BORDER, title_font_color=LIGHT_CYAN),
-        yaxis=dict(title="Persons", gridcolor=BORDER, title_font_color=LIGHT_CYAN)
+        xaxis=dict(title="Age Band", gridcolor="#e0e0e0", title_font_color="#555"),
+        yaxis=dict(title="Persons", gridcolor="#e0e0e0", title_font_color="#555")
     ))
     return fig
 
@@ -147,7 +147,7 @@ def chart_gender(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure(go.Pie(
         labels=counts.index.tolist(), values=counts.values.tolist(),
         marker_colors=[CYAN, LIME], hole=0.4,
-        textinfo="label+percent", textfont_color=LIGHT_CYAN
+        textinfo="label+percent", textfont_color="#333333"
     ))
     fig.update_layout(**_layout("Gender Split"))
     return fig
@@ -163,8 +163,8 @@ def chart_ethnicity(df: pd.DataFrame) -> go.Figure:
     ))
     fig.update_layout(**_layout(
         "Ethnicity (Top 10)", height=420,
-        xaxis=dict(title="Persons", gridcolor=BORDER, title_font_color=LIGHT_CYAN),
-        yaxis=dict(gridcolor=BORDER),
+        xaxis=dict(title="Persons", gridcolor="#e0e0e0", title_font_color="#555"),
+        yaxis=dict(gridcolor="#e0e0e0"),
         margin=dict(l=180, t=55, b=40)
     ))
     return fig
@@ -182,8 +182,8 @@ def chart_income(df: pd.DataFrame) -> go.Figure:
     ))
     fig.update_layout(**_layout(
         "Household Income Distribution", height=400,
-        xaxis=dict(title="Income Band", gridcolor=BORDER, title_font_color=LIGHT_CYAN, tickangle=-30),
-        yaxis=dict(title="Persons", gridcolor=BORDER, title_font_color=LIGHT_CYAN),
+        xaxis=dict(title="Income Band", gridcolor="#e0e0e0", title_font_color="#555", tickangle=-30),
+        yaxis=dict(title="Persons", gridcolor="#e0e0e0", title_font_color="#555"),
         margin=dict(t=55, b=80)
     ))
     return fig
@@ -199,8 +199,8 @@ def chart_education(df: pd.DataFrame) -> go.Figure:
     ))
     fig.update_layout(**_layout(
         "Education Level", height=400,
-        xaxis=dict(title="Education", gridcolor=BORDER, title_font_color=LIGHT_CYAN, tickangle=-20),
-        yaxis=dict(title="Persons", gridcolor=BORDER, title_font_color=LIGHT_CYAN),
+        xaxis=dict(title="Education", gridcolor="#e0e0e0", title_font_color="#555", tickangle=-20),
+        yaxis=dict(title="Persons", gridcolor="#e0e0e0", title_font_color="#555"),
         margin=dict(t=55, b=80)
     ))
     return fig

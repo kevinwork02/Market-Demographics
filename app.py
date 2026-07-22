@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Palette ────────────────────────────────────────────────────────────────────
+# ── Palette ──────────────────────────────────────────────────────────────────────
 NAVY = "#1B2A4A"
 CYAN = "#00BCD4"
 LIGHT_CYAN = "#80DEEA"
@@ -38,7 +38,7 @@ HTTP_PATH = _cfg("DATABRICKS_HTTP_PATH")
 TOKEN = _cfg("DATABRICKS_TOKEN")
 
 
-# ── DB helpers ─────────────────────────────────────────────────────────────────
+# ── DB helpers ─────────────────────────────────────────────────────────────────────
 def _conn():
     for name, val in [
         ("DATABRICKS_SERVER_HOSTNAME", SERVER_HOSTNAME),
@@ -85,13 +85,13 @@ CSS = f"""
 """
 
 
-# ── Cached Loaders (all aggregation done server-side) ──────────────────────────
+# ── Cached Loaders (all aggregation done server-side) ───────────────────────
 def _dma_zip_clause(dma_codes: tuple, zip_codes: tuple) -> str:
     """Build the shared WHERE fragment for DMA + optional zip filter."""
-    dma_filter = ", ".join(f"\'{c}\'" for c in dma_codes)
+    dma_filter = ", ".join(f"'{c}'" for c in dma_codes)
     clause = f"el.dma IN ({dma_filter}) AND ma.reliability_code BETWEEN 1 AND 4"
     if zip_codes:
-        zips = ", ".join(f"\'{z}\'" for z in zip_codes)
+        zips = ", ".join(f"'{z}'" for z in zip_codes)
         clause += f" AND el.zipcode IN ({zips})"
     return clause
 
@@ -112,7 +112,7 @@ def load_dma_list() -> pd.DataFrame:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_zip_codes(dma_codes: tuple) -> pd.DataFrame:
-    dma_filter = ", ".join(f"\'{c}\'" for c in dma_codes)
+    dma_filter = ", ".join(f"'{c}'" for c in dma_codes)
     return _run_query(f"""
         SELECT el.zipcode, el.dma AS dma_code, COUNT(DISTINCT el.luid) AS hh_count
         FROM locality_dev.silver.experian_location el
@@ -137,11 +137,11 @@ def load_summary(dma_codes: tuple, zip_codes: tuple) -> dict:
         WHERE {where}
     """)
     row = df.iloc[0]
-    return {{
+    return {
         "total_persons": int(row["total_persons"]),
         "median_age": int(row["median_age"]) if pd.notna(row["median_age"]) else None,
         "median_income": int(row["median_income"]) if pd.notna(row["median_income"]) else None,
-    }}
+    }
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -231,7 +231,7 @@ def load_education_dist(dma_codes: tuple, zip_codes: tuple) -> pd.DataFrame:
     """)
 
 
-# ── Chart Builders ─────────────────────────────────────────────────────────────
+# ── Chart Builders ────────────────────────────────────────────────────────────────
 def _layout(title: str, height: int = 380, **kwargs) -> dict:
     base = dict(
         title=dict(text=title, font_color=NAVY, font_size=15),
@@ -314,11 +314,11 @@ def chart_education(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-# ── Main App ──────────────────────────────────────────────────────────────────
+# ── Main App ──────────────────────────────────────────────────────────────────────
 def main():
     st.set_page_config(
         page_title="Market Demographics",
-        page_icon="\U0001F4CA",
+        page_icon="📊",
         layout="wide",
         initial_sidebar_state="collapsed",
     )
@@ -326,7 +326,7 @@ def main():
 
     # ── Header banner ──
     st.markdown(
-        '<div class="header-bar"><h1>\U0001F4CA Market Demographics</h1>'
+        '<div class="header-bar"><h1>📊 Market Demographics</h1>'
         '<p>Experian Marketing Attributes \u2014 DMA & Zip-level demographic profiling</p></div>',
         unsafe_allow_html=True,
     )
@@ -338,7 +338,7 @@ def main():
     with st.spinner("Loading DMA list..."):
         dma_df = load_dma_list()
 
-    dma_options = {{f"{{r['dma_name']}} ({{int(r['hh_count']):,}} HHs)": str(r["dma_code"]) for _, r in dma_df.iterrows()}}
+    dma_options = {f"{r['dma_name']} ({int(r['hh_count']):,} HHs)": str(r["dma_code"]) for _, r in dma_df.iterrows()}
     selected_labels = st.multiselect(
         "Search or select markets...",
         options=list(dma_options.keys()),
@@ -354,7 +354,7 @@ def main():
 
     # ── Step 2: Optional Zip Code Filter ──
     st.markdown('<div class="step-pill">Step 2 \u00b7 Filter by Zip (Optional)</div>', unsafe_allow_html=True)
-    with st.expander("\U0001F4CD Select specific zip codes within the DMA(s)", expanded=False):
+    with st.expander("📍 Select specific zip codes within the DMA(s)", expanded=False):
         with st.spinner("Loading zip codes..."):
             zip_df = load_zip_codes(selected_dma_codes)
         zip_options = sorted(zip_df["zipcode"].unique().tolist())
@@ -362,7 +362,7 @@ def main():
             "Select zip codes (leave empty for entire DMA)",
             options=zip_options,
             default=[],
-            help=f"{{len(zip_options)}} zip codes available in selected DMA(s)",
+            help=f"{len(zip_options)} zip codes available in selected DMA(s)",
         )
     selected_zip_tuple = tuple(selected_zips) if selected_zips else ()
 
@@ -379,9 +379,9 @@ def main():
 
     # Summary metrics
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Persons", f"{{summary['total_persons']:,}}")
+    col1.metric("Total Persons", f"{summary['total_persons']:,}")
     col2.metric("Median Age", str(summary["median_age"]) if summary["median_age"] else "N/A")
-    col3.metric("Median HHI", f"${{summary['median_income']}}K" if summary["median_income"] else "N/A")
+    col3.metric("Median HHI", f"${summary['median_income']}K" if summary["median_income"] else "N/A")
     col4.metric("DMAs Selected", str(len(selected_dma_codes)))
 
     # Charts in 2-column layout

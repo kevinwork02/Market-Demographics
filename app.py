@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Theme ─────────────────────────────────────────────────────────────────────
+# ── Palette ────────────────────────────────────────────────────────────────────
 NAVY = "#1B2A4A"
 CYAN = "#00BCD4"
 LIGHT_CYAN = "#80DEEA"
@@ -18,7 +18,8 @@ LIME = "#C5E063"
 DARK_BG = "#0d1f3a"
 BORDER = "#2a3d5e"
 
-# ── Credentials (matches persona_overview pattern) ───────────────────────────
+
+# ── Configuration (matches persona_overview pattern) ───────────────────────────
 def _cfg(env_key: str, secret_key: str | None = None) -> str:
     """Try st.secrets (lowercase then uppercase), fall back to env var."""
     for key in [secret_key or env_key.lower(), env_key]:
@@ -36,24 +37,24 @@ HTTP_PATH = _cfg("DATABRICKS_HTTP_PATH")
 TOKEN = _cfg("DATABRICKS_TOKEN")
 
 
-def _get_creds():
-    """Return (host, path, token) with validation."""
-    if not all([SERVER_HOSTNAME, HTTP_PATH, TOKEN]):
-        missing = [k for k, v in [
-            ("DATABRICKS_SERVER_HOSTNAME", SERVER_HOSTNAME),
-            ("DATABRICKS_HTTP_PATH", HTTP_PATH),
-            ("DATABRICKS_TOKEN", TOKEN),
-        ] if not v]
-        raise RuntimeError(
-            f"Missing credentials: {missing}. "
-            "Add them to Streamlit secrets (lowercase or uppercase) or env vars."
-        )
-    return SERVER_HOSTNAME, HTTP_PATH, TOKEN
+# ── DB helpers ─────────────────────────────────────────────────────────────────
+def _conn():
+    for name, val in [
+        ("DATABRICKS_SERVER_HOSTNAME", SERVER_HOSTNAME),
+        ("DATABRICKS_HTTP_PATH", HTTP_PATH),
+        ("DATABRICKS_TOKEN", TOKEN),
+    ]:
+        if not val:
+            raise ValueError(f"{name} secret is missing or empty.")
+    return dbsql.connect(
+        server_hostname=SERVER_HOSTNAME.strip(),
+        http_path=HTTP_PATH.strip(),
+        access_token=TOKEN.strip(),
+    )
 
 
 def _run_query(query: str) -> pd.DataFrame:
-    host, path, token = _get_creds()
-    with dbsql.connect(server_hostname=host, http_path=path, access_token=token) as conn:
+    with _conn() as conn:
         with conn.cursor() as cur:
             cur.execute(query)
             cols = [d[0] for d in cur.description]
@@ -61,10 +62,32 @@ def _run_query(query: str) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=cols)
 
 
-# ── Cached Loaders ────────────────────────────────────────────────────────────
-@st.cache_data(ttl=3600)
+# ── CSS (identical structure to persona_overview) ──────────────────────────────
+CSS = f"""
+<style>
+.block-container {{ padding-top: 1.25rem; }}
+.header-bar {{
+    background: linear-gradient(90deg, {NAVY} 0%, {DARK_BG} 100%);
+    padding: 1rem 1.5rem; border-radius: 8px; margin-bottom: 1.25rem;
+    border-left: 4px solid {CYAN};
+}}
+.header-bar h1 {{ color: {CYAN}; margin: 0; font-size: 1.7rem; }}
+.header-bar p  {{ color: {LIGHT_CYAN}; margin: 0.2rem 0 0 0; font-size: 0.85rem; }}
+.step-pill {{
+    display: inline-block; background: {NAVY}; color: {CYAN};
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.09em; padding: 0.2rem 0.65rem;
+    border-radius: 999px; border: 1px solid {BORDER};
+    margin-bottom: 0.5rem;
+}}
+</style>
+"""
+
+
+# ── Cached Loaders ─────────────────────────────────────────────────────────────
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_dma_list() -> pd.DataFrame:
-    return _run_query("""
+    df = _run_query("""
         SELECT d.dma_code, d.dma_name, COUNT(DISTINCT el.luid) AS hh_count
         FROM locality_dev.silver.experian_location el
         JOIN locality_dev.default.dma_codes_v3 d ON el.dma = CAST(d.dma_code AS STRING)
@@ -72,11 +95,13 @@ def load_dma_list() -> pd.DataFrame:
         GROUP BY d.dma_code, d.dma_name
         ORDER BY hh_count DESC
     """)
+    df["hh_count"] = df["hh_count"].astype(int)
+    return df
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_zip_codes(dma_codes: tuple) -> pd.DataFrame:
-    dma_filter = ", ".join(f"'{c}'" for c in dma_codes)
+    dma_filter = ", ".join(f"\'{c}\'" for c in dma_codes)
     return _run_query(f"""
         SELECT el.zipcode, el.dma AS dma_code, COUNT(DISTINCT el.luid) AS hh_count
         FROM locality_dev.silver.experian_location el
@@ -87,12 +112,12 @@ def load_zip_codes(dma_codes: tuple) -> pd.DataFrame:
     """)
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_demographics(dma_codes: tuple, zip_codes: tuple) -> pd.DataFrame:
-    dma_filter = ", ".join(f"'{c}'" for c in dma_codes)
+    dma_filter = ", ".join(f"\'{c}\'" for c in dma_codes)
     zip_clause = ""
     if zip_codes:
-        zips = ", ".join(f"'{z}'" for z in zip_codes)
+        zips = ", ".join(f"\'{z}\'" for z in zip_codes)
         zip_clause = f"AND el.zipcode IN ({zips})"
 
     return _run_query(f"""
@@ -111,10 +136,10 @@ def load_demographics(dma_codes: tuple, zip_codes: tuple) -> pd.DataFrame:
     """)
 
 
-# ── Chart Builders ────────────────────────────────────────────────────────────
+# ── Chart Builders ─────────────────────────────────────────────────────────────
 def _layout(title: str, height: int = 380, **kwargs) -> dict:
     base = dict(
-        title=dict(text=title, font_color=NAVY),
+        title=dict(text=title, font_color=NAVY, font_size=15),
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font_color="#333333", height=height,
         margin=dict(t=55, b=40)
@@ -135,8 +160,8 @@ def chart_age(df: pd.DataFrame) -> go.Figure:
     ))
     fig.update_layout(**_layout(
         "Age Distribution",
-        xaxis=dict(title="Age Band", gridcolor="#e0e0e0", title_font_color="#555"),
-        yaxis=dict(title="Persons", gridcolor="#e0e0e0", title_font_color="#555")
+        xaxis=dict(title="Age Band", gridcolor="#eee", title_font_color="#555"),
+        yaxis=dict(title="Persons", gridcolor="#eee", title_font_color="#555")
     ))
     return fig
 
@@ -147,7 +172,7 @@ def chart_gender(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure(go.Pie(
         labels=counts.index.tolist(), values=counts.values.tolist(),
         marker_colors=[CYAN, LIME], hole=0.4,
-        textinfo="label+percent", textfont_color="#333333"
+        textinfo="label+percent", textfont_color="#333"
     ))
     fig.update_layout(**_layout("Gender Split"))
     return fig
@@ -163,8 +188,8 @@ def chart_ethnicity(df: pd.DataFrame) -> go.Figure:
     ))
     fig.update_layout(**_layout(
         "Ethnicity (Top 10)", height=420,
-        xaxis=dict(title="Persons", gridcolor="#e0e0e0", title_font_color="#555"),
-        yaxis=dict(gridcolor="#e0e0e0"),
+        xaxis=dict(title="Persons", gridcolor="#eee", title_font_color="#555"),
+        yaxis=dict(gridcolor="#eee"),
         margin=dict(l=180, t=55, b=40)
     ))
     return fig
@@ -182,8 +207,8 @@ def chart_income(df: pd.DataFrame) -> go.Figure:
     ))
     fig.update_layout(**_layout(
         "Household Income Distribution", height=400,
-        xaxis=dict(title="Income Band", gridcolor="#e0e0e0", title_font_color="#555", tickangle=-30),
-        yaxis=dict(title="Persons", gridcolor="#e0e0e0", title_font_color="#555"),
+        xaxis=dict(title="Income Band", gridcolor="#eee", title_font_color="#555", tickangle=-30),
+        yaxis=dict(title="Persons", gridcolor="#eee", title_font_color="#555"),
         margin=dict(t=55, b=80)
     ))
     return fig
@@ -199,8 +224,8 @@ def chart_education(df: pd.DataFrame) -> go.Figure:
     ))
     fig.update_layout(**_layout(
         "Education Level", height=400,
-        xaxis=dict(title="Education", gridcolor="#e0e0e0", title_font_color="#555", tickangle=-20),
-        yaxis=dict(title="Persons", gridcolor="#e0e0e0", title_font_color="#555"),
+        xaxis=dict(title="Education", gridcolor="#eee", title_font_color="#555", tickangle=-20),
+        yaxis=dict(title="Persons", gridcolor="#eee", title_font_color="#555"),
         margin=dict(t=55, b=80)
     ))
     return fig
@@ -208,52 +233,58 @@ def chart_education(df: pd.DataFrame) -> go.Figure:
 
 # ── Main App ──────────────────────────────────────────────────────────────────
 def main():
-    st.set_page_config(page_title="Market Demographics", layout="wide")
+    st.set_page_config(
+        page_title="Market Demographics",
+        page_icon="\U0001F4CA",
+        layout="wide",
+        initial_sidebar_state="collapsed",
+    )
+    st.markdown(CSS, unsafe_allow_html=True)
+
+    # ── Header banner (same as persona_overview) ──
     st.markdown(
-        f"""
-        <style>
-        .stApp {{ background-color: {NAVY}; }}
-        h1, h2, h3 {{ color: {LIGHT_CYAN}; }}
-        .stMetric label {{ color: {LIGHT_CYAN}; }}
-        .stMetric [data-testid="stMetricValue"] {{ color: {CYAN}; }}
-        </style>
-        """,
+        '<div class="header-bar"><h1>\U0001F4CA Market Demographics</h1>'
+        '<p>Experian Marketing Attributes \u2014 DMA & Zip-level demographic profiling</p></div>',
         unsafe_allow_html=True,
     )
 
-    st.title("Market Demographics")
-    st.caption("Experian Marketing Attributes — DMA & Zip-level demographic profiling")
-
     # ── Step 1: DMA Selection ──
+    st.markdown('<div class="step-pill">Step 1 \u00b7 Select Markets</div>', unsafe_allow_html=True)
+    st.markdown("Choose one or more DMAs:")
+
     with st.spinner("Loading DMA list..."):
         dma_df = load_dma_list()
 
-    dma_options = {f"{r['dma_name']} ({r['dma_code']})": str(r["dma_code"]) for _, r in dma_df.iterrows()}
+    dma_options = {f"{r['dma_name']} ({int(r['hh_count']):,} HHs)": str(r["dma_code"]) for _, r in dma_df.iterrows()}
     selected_labels = st.multiselect(
-        "Select DMAs",
+        "Search or select markets...",
         options=list(dma_options.keys()),
-        default=[list(dma_options.keys())[0]],  # default to largest DMA
-        help="Choose one or more DMAs to profile"
+        default=[],
+        label_visibility="collapsed",
+        placeholder="Search or select markets...",
     )
     selected_dma_codes = tuple(dma_options[lbl] for lbl in selected_labels)
 
     if not selected_dma_codes:
-        st.warning("Please select at least one DMA.")
+        st.info("Select at least one DMA to continue.")
         return
 
     # ── Step 2: Optional Zip Code Filter ──
-    with st.expander("\U0001F4CD Filter by Zip Code (optional)", expanded=False):
-        zip_df = load_zip_codes(selected_dma_codes)
+    st.markdown('<div class="step-pill">Step 2 \u00b7 Filter by Zip (Optional)</div>', unsafe_allow_html=True)
+    with st.expander("\U0001F4CD Select specific zip codes within the DMA(s)", expanded=False):
+        with st.spinner("Loading zip codes..."):
+            zip_df = load_zip_codes(selected_dma_codes)
         zip_options = sorted(zip_df["zipcode"].unique().tolist())
         selected_zips = st.multiselect(
             "Select zip codes (leave empty for entire DMA)",
             options=zip_options,
             default=[],
-            help=f"{len(zip_options)} zip codes available in selected DMA(s)"
+            help=f"{len(zip_options)} zip codes available in selected DMA(s)",
         )
     selected_zip_tuple = tuple(selected_zips) if selected_zips else ()
 
-    # ── Step 3: Load & Chart ──
+    # ── Step 3: Demographic Profile ──
+    st.markdown('<div class="step-pill">Step 3 \u00b7 Demographic Profile</div>', unsafe_allow_html=True)
     with st.spinner("Loading demographics..."):
         df = load_demographics(selected_dma_codes, selected_zip_tuple)
 
@@ -262,7 +293,6 @@ def main():
         return
 
     # Summary metrics
-    st.markdown("---")
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Persons", f"{len(df):,}")
     age_known = df["exact_age"].notna().sum()

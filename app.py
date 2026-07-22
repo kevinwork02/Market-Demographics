@@ -18,18 +18,37 @@ LIME = "#C5E063"
 DARK_BG = "#0d1f3a"
 BORDER = "#2a3d5e"
 
-# ── Credentials ───────────────────────────────────────────────────────────────
+# ── Credentials (matches persona_overview pattern) ───────────────────────────
+def _cfg(env_key: str, secret_key: str | None = None) -> str:
+    """Try st.secrets (lowercase then uppercase), fall back to env var."""
+    for key in [secret_key or env_key.lower(), env_key]:
+        try:
+            val = st.secrets.get(key, "")
+            if val:
+                return val
+        except Exception:
+            pass
+    return os.environ.get(env_key, "")
+
+
+SERVER_HOSTNAME = _cfg("DATABRICKS_SERVER_HOSTNAME")
+HTTP_PATH = _cfg("DATABRICKS_HTTP_PATH")
+TOKEN = _cfg("DATABRICKS_TOKEN")
+
+
 def _get_creds():
-    """Try st.secrets first, then env vars. Accepts both TOKEN key names."""
-    try:
-        host = st.secrets["DATABRICKS_SERVER_HOSTNAME"]
-        path = st.secrets["DATABRICKS_HTTP_PATH"]
-        token = st.secrets.get("DATABRICKS_ACCESS_TOKEN") or st.secrets["DATABRICKS_TOKEN"]
-    except (KeyError, FileNotFoundError):
-        host = os.environ["DATABRICKS_SERVER_HOSTNAME"]
-        path = os.environ["DATABRICKS_HTTP_PATH"]
-        token = os.environ.get("DATABRICKS_ACCESS_TOKEN") or os.environ["DATABRICKS_TOKEN"]
-    return host, path, token
+    """Return (host, path, token) with validation."""
+    if not all([SERVER_HOSTNAME, HTTP_PATH, TOKEN]):
+        missing = [k for k, v in [
+            ("DATABRICKS_SERVER_HOSTNAME", SERVER_HOSTNAME),
+            ("DATABRICKS_HTTP_PATH", HTTP_PATH),
+            ("DATABRICKS_TOKEN", TOKEN),
+        ] if not v]
+        raise RuntimeError(
+            f"Missing credentials: {missing}. "
+            "Add them to Streamlit secrets (lowercase or uppercase) or env vars."
+        )
+    return SERVER_HOSTNAME, HTTP_PATH, TOKEN
 
 
 def _run_query(query: str) -> pd.DataFrame:
